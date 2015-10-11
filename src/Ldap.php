@@ -915,7 +915,19 @@ class Ldap
                 break;
             case self::SEARCH_SCOPE_SUB:
             default:
-                $search = ldap_search($resource, $basedn, $filter, $attributes, 0, $sizelimit, $timelimit);
+                ldap_set_option($resource, LDAP_OPT_PROTOCOL_VERSION, 3);
+
+                $cookie = '';
+                $results = [];
+
+                do {
+                    ldap_control_paged_result($resource, 1000, true, $cookie);
+                    $search = ldap_search($resource, $basedn, $filter, $attributes, 0, $sizelimit, $timelimit);
+                    $entries = ldap_get_entries($resource, $search);
+                    ldap_control_paged_result_response($resource, $search, $cookie);
+
+                    $results = array_merge($results, $entries);
+                } while( $cookie !== null && $cookie != '');
                 break;
         }
         ErrorHandler::stop();
@@ -931,6 +943,8 @@ class Ldap
                 throw new Exception\LdapException($this, 'sorting: ' . $sort);
             }
         }
+
+        if( !empty($results) ) return $results;
 
         $iterator = new Collection\DefaultIterator($this, $search);
 
